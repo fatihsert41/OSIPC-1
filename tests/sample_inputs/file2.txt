@@ -1,0 +1,4 @@
+Shared memory allows
+processes to communicate.
+Shared memory is fast.
+Processes share data.

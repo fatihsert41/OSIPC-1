@@ -1,0 +1,4 @@
+Linux is an operating
+system. Linux supports
+processes and threads.
+Linux is powerful.

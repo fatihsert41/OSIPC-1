@@ -1,0 +1,6 @@
+mapreduce_shm
+mapreduce_pipe
+mapreduce_thread
+bench/data/
+OS_MapReduce_*
+__pycache__/
