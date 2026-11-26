@@ -5,7 +5,7 @@ LDLIBS_THREAD = -pthread
 
 BINS = mapreduce_shm mapreduce_pipe mapreduce_thread
 
-.PHONY: all clean test bench dist
+.PHONY: all clean test bench report dist
 
 all: $(BINS)
 
@@ -27,6 +27,12 @@ bench: all
 	python3 bench/gen_data.py bench/data
 	sh bench/run_bench.sh bench/data bench/results.csv
 	python3 bench/plot.py bench/results.csv bench/figures
+
+# Rebuild report.pdf from bench/results.csv, bench/extra.csv and the figures
+report:
+	python3 bench/plot.py bench/results.csv bench/figures
+	python3 report/build_report.py
+	node report/html2pdf.js report/report.html report.pdf
 
 # Submission archive: required layout (+ tests/ and bench/ scripts used by the README)
 STUDENT_ID ?= StudentID

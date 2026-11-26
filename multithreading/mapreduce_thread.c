@@ -440,7 +440,21 @@ static void emit_results(const options_t *o, wtable_t *tables)
  * After pthread_join() of every worker the main thread performs the reduce
  * step, merging the local tables of all threads file by file.
  */
+#include <malloc.h>
 #include <pthread.h>
+
+/* glibc gives every thread its own malloc arena and grows it in small steps
+ * with mprotect()/mmap(). Those calls take the address-space lock of the whole
+ * process for writing, so they stall the page faults of all other threads.
+ * Measured on D2 with N=16: sys time 0.45 s -> 0.06 s, wall time 427 -> 232 ms
+ * after asking malloc to grow heaps in 64 MiB steps. Processes do not suffer
+ * from this because each has its own address space.
+ * Set MR_DEFAULT_MALLOC=1 to disable the tuning (used for the experiment). */
+static void tune_malloc(void)
+{
+    const char *e = getenv("MR_DEFAULT_MALLOC");
+    if (!(e && *e && *e != '0')) mallopt(M_TOP_PAD, 64 << 20);
+}
 
 typedef struct {
     const options_t *opt;
@@ -490,6 +504,7 @@ static void *worker_main(void *arg)
 
 static int run_mapreduce(const options_t *o, const task_t *tasks, size_t ntasks, wtable_t *tables)
 {
+    tune_malloc();
     pool_t p = {.opt = o, .tasks = tasks, .ntasks = ntasks, .next_task = 0, .failed = 0};
     pthread_mutex_init(&p.lock, NULL);
 

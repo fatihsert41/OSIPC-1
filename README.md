@@ -107,6 +107,8 @@ sh bench/run_extra.sh bench/data bench/extra.csv         # chunk-size sweep, sma
 python3 bench/plot.py bench/results.csv bench/figures    # medians.csv + speedup_D*.png
 ```
 
+`make report` rebuilds `report.pdf` from the measurements. It needs `matplotlib` and Node.js with Playwright.
+
 To use the official datasets from AYBÜZEM, put them in `bench/data/D1` … `bench/data/D5` (`*.txt`) and skip `gen_data.py`.
 
 ## Submission archive

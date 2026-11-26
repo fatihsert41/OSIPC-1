@@ -3,6 +3,7 @@
 #  1) chunk-size sweep: D2 (100 MB), N=4, chunk = 64K .. 128M
 #  2) small file split: D1 (1 MB) with 128 KiB chunks, N = 1..16
 #  3) fixed overhead: 10 tiny files (sample inputs), N = 1 and N = 10
+#  4) thread version with default glibc malloc behaviour (MR_DEFAULT_MALLOC=1), D2
 DATA=${1:-bench/data}; OUT=${2:-bench/extra.csv}
 REPS=${REPS:-5}
 cd "$(dirname "$0")/.." || exit 1
@@ -22,5 +23,9 @@ S=tests/sample_inputs
 TINY="$S/file1.txt $S/file2.txt $S/edge_cases.txt $S/fewer_than_five.txt $S/empty.txt $S/file1.txt $S/file2.txt $S/edge_cases.txt $S/fewer_than_five.txt $S/empty.txt"
 for n in 1 10; do
     for impl in shm pipe thread; do REPS=21; echo "overhead,$impl,10tiny,$n,$(run $impl $n $TINY)" >> "$OUT"; done
+done
+for n in 1 2 4 8 16; do
+    echo "malloc,thread,tuned,$n,$(run thread $n $DATA/D2/*.txt)" >> "$OUT"
+    echo "malloc,thread,default,$n,$(MR_DEFAULT_MALLOC=1 run thread $n $DATA/D2/*.txt)" >> "$OUT"
 done
 echo "wrote $OUT"

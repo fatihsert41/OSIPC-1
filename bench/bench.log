@@ -4,3 +4,14 @@ done D1 thread
 done D2 shm
 done D2 pipe
 done D2 thread
+done D3 shm
+done D3 pipe
+done D3 thread
+done D4 shm
+done D4 pipe
+done D4 thread
+done D5 shm
+done D5 pipe
+done D5 thread
+wrote bench/extra.csv
+wrote bench/figures

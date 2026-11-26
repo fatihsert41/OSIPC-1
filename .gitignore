@@ -4,3 +4,4 @@ mapreduce_thread
 bench/data/
 OS_MapReduce_*
 __pycache__/
+bench/bench.log
