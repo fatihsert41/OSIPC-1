@@ -5,3 +5,4 @@ bench/data/
 OS_MapReduce_*
 __pycache__/
 bench/bench.log
+bench/data_synthetic/

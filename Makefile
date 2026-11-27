@@ -22,10 +22,13 @@ mapreduce_thread: multithreading/mapreduce_thread.c
 test: all
 	sh tests/run_tests.sh
 
-# Performance experiments (generates ~400 MB of data under bench/data)
+# Performance experiments. Put the official datasets in bench/data/D1 ... D5
+# (*.txt); synthetic data is generated only if bench/data/D1 does not exist.
+DATA ?= bench/data
 bench: all
-	python3 bench/gen_data.py bench/data
-	sh bench/run_bench.sh bench/data bench/results.csv
+	[ -d $(DATA)/D1 ] || python3 bench/gen_data.py $(DATA)
+	sh bench/run_bench.sh $(DATA) bench/results.csv
+	sh bench/run_extra.sh $(DATA) bench/extra.csv
 	python3 bench/plot.py bench/results.csv bench/figures
 
 # Rebuild report.pdf from bench/results.csv, bench/extra.csv and the figures
@@ -42,7 +45,7 @@ dist:
 	cp shared_memory/mapreduce_shm.c OS_MapReduce_$(STUDENT_ID)/shared_memory/
 	cp message_passing/mapreduce_pipe.c OS_MapReduce_$(STUDENT_ID)/message_passing/
 	cp multithreading/mapreduce_thread.c OS_MapReduce_$(STUDENT_ID)/multithreading/
-	cp Makefile README.md report.pdf OS_MapReduce_$(STUDENT_ID)/
+	cp Makefile README.md report.pdf video_link.txt OS_MapReduce_$(STUDENT_ID)/
 	mkdir -p OS_MapReduce_$(STUDENT_ID)/tests OS_MapReduce_$(STUDENT_ID)/bench
 	cp -r tests/sample_inputs tests/expected_output.txt tests/reference.py tests/run_tests.sh OS_MapReduce_$(STUDENT_ID)/tests/
 	cp bench/*.py bench/*.sh OS_MapReduce_$(STUDENT_ID)/bench/

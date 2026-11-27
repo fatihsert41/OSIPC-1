@@ -1,3 +1,5 @@
+[ -d bench/data/D1 ] || python3 bench/gen_data.py bench/data
+sh bench/run_bench.sh bench/data bench/results.csv
 done D1 shm
 done D1 pipe
 done D1 thread
@@ -13,5 +15,7 @@ done D4 thread
 done D5 shm
 done D5 pipe
 done D5 thread
+sh bench/run_extra.sh bench/data bench/extra.csv
 wrote bench/extra.csv
+python3 bench/plot.py bench/results.csv bench/figures
 wrote bench/figures

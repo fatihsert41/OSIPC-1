@@ -94,22 +94,25 @@ make test
 
 ## Benchmark
 
+Put the official datasets (D1-5.rar from AYBÜZEM) into `bench/data`, so that you have `bench/data/D1/*.txt` through `bench/data/D5/*.txt`. Then run:
+
 ```bash
-make bench        # generates the datasets, runs all experiments, draws the graphs
+make bench        # runs all experiments and draws the graphs
 ```
+
+If `bench/data/D1` does not exist, `make bench` first generates synthetic datasets of the same sizes.
 
 The steps can also be run one at a time:
 
 ```bash
-python3 bench/gen_data.py bench/data                     # D1..D5, about 600 MB of synthetic text
 sh bench/run_bench.sh bench/data bench/results.csv       # 3 impl x 5 datasets x N in {1,2,4,8,16} x 5 reps
-sh bench/run_extra.sh bench/data bench/extra.csv         # chunk-size sweep, small-file split, fixed overhead
+sh bench/run_extra.sh bench/data bench/extra.csv         # chunk sweep, small-file split, fixed overhead, malloc, D4 no-split
 python3 bench/plot.py bench/results.csv bench/figures    # medians.csv + speedup_D*.png
 ```
 
-`make report` rebuilds `report.pdf` from the measurements. It needs `matplotlib` and Node.js with Playwright.
+The large-vocabulary experiment in §6 of the report used `python3 bench/gen_data.py <dir>` (synthetic text, 60 000 words). Its results are in `bench/synthetic/`.
 
-To use the official datasets from AYBÜZEM, put them in `bench/data/D1` … `bench/data/D5` (`*.txt`) and skip `gen_data.py`.
+`make report` rebuilds `report.pdf` from the measurements. It needs `matplotlib` and Node.js with Playwright. The student name and the test-computer table are set at the top of `report/build_report.py`.
 
 ## Submission archive
 
@@ -117,4 +120,4 @@ To use the official datasets from AYBÜZEM, put them in `bench/data/D1` … `ben
 make dist STUDENT_ID=12345678     # creates OS_MapReduce_12345678.zip
 ```
 
-The archive has the required layout: the three source directories, `Makefile`, `README.md` and `report.pdf`. It also includes the small `tests/` and `bench/` scripts that this README refers to, but no datasets.
+The archive has the required layout: the three source directories, `Makefile`, `README.md` and `report.pdf`, plus `video_link.txt` with the YouTube link of the demo video. It also includes the small `tests/` and `bench/` scripts that this README refers to, but no datasets.

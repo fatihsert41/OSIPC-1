@@ -1,0 +1,6 @@
+nosplit D4 shm N=1 747.843
+nosplit D4 shm N=4 661.226
+nosplit D4 pipe N=1 818.302
+nosplit D4 pipe N=4 648.858
+nosplit D4 thread N=1 810.282
+nosplit D4 thread N=4 670.871
