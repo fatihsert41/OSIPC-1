@@ -4,6 +4,7 @@
 #  2) small file split: D1 (1 MB) with 128 KiB chunks, N = 1..16
 #  3) fixed overhead: 10 tiny files (sample inputs), N = 1 and N = 10
 #  4) thread version with default glibc malloc behaviour (MR_DEFAULT_MALLOC=1), D2
+#  5) D4 without splitting (-c 1G), N = 1 and 4
 DATA=${1:-bench/data}; OUT=${2:-bench/extra.csv}
 REPS=${REPS:-5}
 cd "$(dirname "$0")/.." || exit 1
@@ -27,5 +28,10 @@ done
 for n in 1 2 4 8 16; do
     echo "malloc,thread,tuned,$n,$(run thread $n $DATA/D2/*.txt)" >> "$OUT"
     echo "malloc,thread,default,$n,$(MR_DEFAULT_MALLOC=1 run thread $n $DATA/D2/*.txt)" >> "$OUT"
+done
+# 5) D4 without splitting (one task per file) -> bench/d4_nosplit.txt
+NS_OUT="$(dirname "$OUT")/d4_nosplit.txt"; : > "$NS_OUT"
+for impl in shm pipe thread; do
+    for n in 1 4; do echo "nosplit D4 $impl N=$n $(run $impl $n -c 1G $DATA/D4/*.txt)" >> "$NS_OUT"; done
 done
 echo "wrote $OUT"
