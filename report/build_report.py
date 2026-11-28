@@ -7,16 +7,17 @@ import base64, csv, os, statistics
 from collections import defaultdict
 
 # ---------------------------------------------------------------- edit me
-STUDENT = "Name Surname"
-STUDENT_ID = "Student ID"
+STUDENT = "Süleyman Fatih Sert"
+STUDENT_ID = "22050111031"
 ENV = [
-    ("CPU", "Intel® Xeon® Processor @ 2.10 GHz (virtual machine), 4 cores, 1 thread per core"),
-    ("Logical processors", "4"),
-    ("RAM", "16 GB (15.7 GiB)"),
-    ("Operating system", "Ubuntu 24.04.5 LTS, Linux kernel 6.18 (x86-64)"),
-    ("Compiler", "gcc 13.3.0, <code>-O2 -std=gnu11</code>"),
+    ("CPU", "Intel® Core™ i5-10300H @ 2.50 GHz (up to 4.5 GHz turbo), 4 physical cores, 2 threads per core (laptop, on AC power)"),
+    ("Logical processors", "8"),
+    ("RAM", "16 GB"),
+    ("Operating system", "Windows 11 (build 26200) with WSL2: Ubuntu 26.04.1 LTS, Linux kernel 6.6.87.2-microsoft-standard-WSL2"),
+    ("Compiler", "gcc 15.2.0, <code>-O2 -std=gnu11</code>"),
 ]
-NCPU = 4
+NCORES = 4   # physical cores
+NCPU = 8     # logical processors
 # ------------------------------------------------------------------------
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -199,11 +200,14 @@ grows each thread's heap in large steps; §6 explains why.</p>
 <p>Here 1 MB = 10<sup>6</sup> bytes. The files repeat the same English paragraph, so each file has only 26 distinct
 words. Each program measures itself with <code>clock_gettime(CLOCK_MONOTONIC)</code>. Timing starts just before
 partitioning and parallel setup, and stops after the results have been printed and all workers and IPC objects have
-been cleaned up. Output goes to <code>/dev/null</code>. Every configuration (3 implementations × 5 datasets ×
+been cleaned up. Output goes to <code>/dev/null</code>. The programs ran inside WSL2, with the datasets on WSL's
+own ext4 file system. Every configuration (3 implementations × 5 datasets ×
 <i>N</i> ∈ {{1, 2, 4, 8, 16}}) was run 5 times, and the median is reported. Files were warm in the page cache, and
 one warm-up run was done per dataset and implementation. The default chunk threshold was 8 MiB, which gives 1, 12,
-12, 17 and 35 tasks for D1–D5. Repeated runs of the same configuration varied by roughly 5–20%, so smaller
-differences should not be over-interpreted. All scripts are in <code>bench/</code> (<code>make bench</code>).</p>
+12, 17 and 35 tasks for D1–D5. Repeated runs of the same configuration usually varied by 5–30%, and a few runs
+were clear outliers. For example, two of the five pipe runs on D5 with N = 1 took 727 and 961 ms instead of about
+540 ms, which also inflates that curve's speedup. The median limits the effect of such outliers, but differences
+smaller than about 10% should not be over-interpreted. All scripts are in <code>bench/</code> (<code>make bench</code>).</p>
 
 <div class="avoid"><h2>4. Results</h2>
 <div class="grid3">
@@ -231,7 +235,9 @@ default 8 MiB chunks.</p>{t_nos}</div>
 <p>The official files have only 26 distinct words, so the frequency tables are tiny and almost no result data has to
 be moved between workers. To see how the designs behave when the partial results are large, the same experiments
 were also run on synthetic text with the same file sizes and a Zipf-distributed vocabulary of 60,000 words
-(<code>bench/gen_data.py</code>; results in <code>bench/synthetic/</code>).</p>
+(<code>bench/gen_data.py</code>; results in <code>bench/synthetic/</code>). This experiment was run during development
+on a different machine, a 4-core Intel Xeon 2.1 GHz virtual machine with Ubuntu 24.04 and gcc 13.3, so its
+absolute times cannot be compared with Table 1.</p>
 <div class="grid avoid"><div>
 <p><b>Table 6.</b> Synthetic D2, median ms.</p>{t_syn}
 <p>With large tables, threads are clearly fastest with one worker, because the process versions must serialize
@@ -251,11 +257,13 @@ because the tables stay small.</p>
 memory and {m('D1','pipe',1)} ms for pipes. With so little data, setup cost is most of the runtime. Table 4
 isolates that cost. Processing 10 tiny files takes {e('overhead','thread','10tiny',1):.2f} ms with one thread,
 {e('overhead','pipe','10tiny',1):.2f} ms with one pipe worker, and {e('overhead','shm','10tiny',1):.2f} ms with shared
-memory, which forks a process and creates, maps and unlinks a segment for every task (about 0.4 ms per task when
+memory, which forks a process and creates, maps and unlinks a segment for every task (about {(e('overhead','shm','10tiny',1)-e('overhead','thread','10tiny',1))/10:.1f} ms more per task than a thread when
 run serially). A thread needs no page-table copy, no serialization and no system calls to exchange results.
 D1 is a single task at the default threshold, so more workers cannot help and all curves in Figure 1 stay near 1.
-When D1 is split into 128 KiB chunks (Table 3), the best times fall to about 1.1–1.9 ms at N = 4, and the threaded
-version is still fastest. Beyond that point, the extra workers cost more than the parallel work saves.</p>
+When D1 is split into 128 KiB chunks (Table 3), the times at N = 4 fall to
+{min(e('d1split',i,'128K',4) for i,_ in IMPLS):.2f}–{max(e('d1split',i,'128K',4) for i,_ in IMPLS):.2f} ms, and the
+threaded version is still fastest. Beyond that point, the gains are only a fraction of a millisecond, because the
+remaining work is smaller than the cost of starting more workers.</p>
 
 <p class="q">Which implementation performs best for large input files? Why?</p>
 <p>On the official data the three versions are close. At N = 4 the fastest version is:
@@ -265,21 +273,27 @@ version is still fastest. Beyond that point, the extra workers cost more than th
 <li>D4: {LABEL[fast4['D4']].lower()} ({m('D4', fast4['D4'], 4)} ms)</li>
 <li>D5: {LABEL[fast4['D5']].lower()} ({m('D5', fast4['D5'], 4)} ms)</li>
 </ul>
-Shared memory is usually last. Because each table holds only 26 words, the IPC payload is a few hundred bytes per
-task. Almost all of the time goes to the identical scanning loop, which processes about {thr_1:.0f} MB/s per core.
+The threaded version is also the fastest overall on every dataset (Table 1), while shared memory and pipes are
+close to each other. Because each table holds only 26 words, the IPC payload is a few hundred bytes
+per task. Almost all of the time goes to the identical scanning loop, which processes about {thr_1:.0f} MB/s per core.
 The differences that remain come from per-task costs. Threads pay only a mutex operation per task. Pipes pay one
 message round trip and reuse <i>N</i> workers. Shared memory pays a <code>fork()</code>, a new segment and a
-<code>waitpid()</code> per task, which also makes its single-worker time the slowest
-({d2_1['shm']:.0f} ms on D2, vs. {d2_1['pipe']:.0f} ms for pipes and {d2_1['thread']:.0f} ms for threads).
+<code>waitpid()</code> per task. With one worker, both process versions are about 8–10% slower than threads
+({d2_1['shm']:.0f} ms for shared memory and {d2_1['pipe']:.0f} ms for pipes on D2, vs. {d2_1['thread']:.0f} ms for threads).
 When the partial results are large (§6), threads win by a wider margin, because the process versions must
 serialize, copy and re-hash every table.</p>
 
 <p class="q">How does increasing the number of workers affect execution time?</p>
-<p>From 1 to {NCPU} workers, the time falls almost linearly. The average speedup at N = 4 over D2–D5 is
-{avg_sp4['shm']:.2f} for shared memory, {avg_sp4['pipe']:.2f} for pipes and {avg_sp4['thread']:.2f} for threads,
-because the work is CPU-bound and the files are in the page cache. Beyond {NCPU} workers (the number of logical
-CPUs), there is no consistent further gain. The best time at N = 8 or 16 is within about ±20% of the best at N = 4,
-which is close to the measurement noise. The number of tasks also caps useful parallelism, since D1 has a single task.</p>
+<p>Going from 1 to 2 workers cuts the time by about 40–50%. From 2 to {NCORES} workers (the number of physical cores)
+the time keeps falling, but less than linearly. The average speedup at N = 4 over D2–D5 is
+{avg_sp4['shm']:.2f} for shared memory, {avg_sp4['pipe']:.2f} for pipes and {avg_sp4['thread']:.2f} for threads.
+The most likely reasons are that this laptop CPU runs a single core at up to 4.5 GHz but lowers the clock when all
+cores are busy, that all cores share one 8 MB L3 cache and the memory bus, and that the system runs inside the
+WSL2 virtual machine alongside Windows. The clock frequency was not measured, so this explanation is an inference.
+From {NCORES} to {NCPU} workers, Hyper-Threading adds another
+{statistics.mean(med[(ds,i,4)]/med[(ds,i,8)] for ds in ds_large for i,_ in IMPLS)*100-100:.0f}% on average,
+reaching speedups of typically 3.0–3.5 at N = 8 (2.7–3.8 over all large datasets). Two hardware threads share one core's execution units, so they give much
+less than a second core would. Beyond {NCPU} workers there is no further gain (see the last question).</p>
 
 <p class="q">What are the overheads associated with process creation, thread creation, shared memory, and message passing?</p>
 <ul>
@@ -302,10 +316,11 @@ fork cost over many tasks. With 64 KiB chunks, pipes need {e('chunk','pipe','64K
 <p class="q">Does splitting a large file into smaller chunks always improve performance?</p>
 <p><b>No.</b> Table 2 and Figure 6 show this. Without splitting (128M), the 100 MB file is one task, so only one core
 works and every version takes about {min(e('chunk',i,'128M',4) for i,_ in IMPLS):.0f}–{max(e('chunk',i,'128M',4) for i,_ in IMPLS):.0f} ms.
-Moderate chunks of 256 KiB to 16 MiB are two to four times faster. Very small chunks hurt the process versions:
+Moderate chunks of 256 KiB to 16 MiB are
+{min(e('chunk',i,'128M',4)/max(e('chunk',i,c,4) for c in CH[1:6]) for i,_ in IMPLS):.1f}–{max(e('chunk',i,'128M',4)/min(e('chunk',i,c,4) for c in CH[1:6]) for i,_ in IMPLS):.1f}
+times faster. Very small chunks hurt the process versions:
 shared memory needs {e('chunk','shm','64K',4):.0f} ms at 64 KiB, because every chunk adds a fork or a message, a fresh
-table and a merge. Threads stay at about {e('chunk','thread','64K',4):.0f}–{e('chunk','thread','16M',4):.0f} ms across that
-range, since an extra chunk costs them only a mutex operation. Large chunks of 32 MiB leave only 3 tasks
+table and a merge. Threads stay at about {min(e('chunk','thread',c,4) for c in CH[:6]):.0f}–{max(e('chunk','thread',c,4) for c in CH[:6]):.0f} ms from 64 KiB to 16 MiB, since an extra chunk costs them only a mutex operation. Large chunks of 32 MiB leave only 3 tasks
 for 4 workers. The best chunk size gives a few tasks per worker while the per-task overhead
 stays small.</p>
 
@@ -319,11 +334,13 @@ Splitting large files and scheduling dynamically, where the next free worker tak
 balances the load.</p>
 
 <p class="q">Why might increasing the number of workers beyond the number of available CPU cores fail to improve performance?</p>
-<p>The task is CPU-bound, and with {NCPU} logical processors at most {NCPU} mappers can run at the same time. Extra
-workers only time-share the same cores and add costs: context switches, more process or thread creation, more
-partial tables to merge, cache pressure, and for threads more contention on the shared address space. The master,
-which needs CPU time to merge results, has to compete with them. Table 1 confirms this: times at N = 8 and 16 are
-no better than at N = 4.</p>
+<p>The task is CPU-bound. This CPU has {NCORES} physical cores with 2 hardware threads each, so at most {NCPU}
+mappers can run at the same time, and two of them share a core. Extra workers only time-share the same hardware
+threads and add costs: context switches, more process or thread creation, more partial tables to merge, cache
+pressure, and for threads more contention on the shared address space. The master, which needs CPU time to merge
+results, has to compete with them. Table 1 confirms this. Compared with N = 8, N = 16 changes the time by
+at most about 10%, except for shared memory on D5, which gets slower ({m('D5','shm',8)} → {m('D5','shm',16)} ms): it creates
+35 short-lived processes, and with 16 running at once they compete for 8 hardware threads.</p>
 
 <p class="q">What are the advantages and disadvantages of processes compared with threads for this application?</p>
 <p><b>Processes:</b>
@@ -346,11 +363,12 @@ speed for isolation.</p>
 
 <h2>8. Conclusion</h2>
 <p>All three designs produce identical, verified results and never run more than <i>N</i> mappers at a time. On the
-official datasets they scale almost linearly up to the {NCPU} available cores and differ only slightly, because
-the work is dominated by scanning text and the partial results are tiny. Shared memory with fork-per-task has the
-highest per-task overhead, pipes are in between, and threads have the lowest. These differences grow with very
-small chunks or large vocabularies. Splitting large files into moderate, word-safe chunks combined with dynamic
-scheduling is essential for large and unequal inputs, and using more workers than cores does not help.</p>
+official datasets and this 4-core/8-thread laptop, they reach speedups of about 2.7 at N = 4 and typically 3.0–3.5 at N = 8.
+They differ only slightly, because the work is dominated by scanning text and the partial results are tiny. Threads
+were the fastest at every input size. Shared memory with fork-per-task has the highest per-task overhead, and
+pipes are in between. These differences grow with very small chunks or large vocabularies. Splitting large files
+into moderate, word-safe chunks combined with dynamic scheduling is essential for large and unequal inputs.
+Using more workers than hardware threads does not help.</p>
 </body></html>
 """
 open(os.path.join(ROOT, "report", "report.html"), "w").write(html)
